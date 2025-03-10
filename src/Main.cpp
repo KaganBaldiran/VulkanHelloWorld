@@ -39,6 +39,10 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
 
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
+
+    bool isComplete() {
+        return graphicsFamily.has_value();
+    }
 };
 
 class HelloWorldTriangle
@@ -61,6 +65,9 @@ private:
     VkDebugUtilsMessengerEXT DebugMessenger;
     VkPhysicalDevice PhysicalDevice = VK_NULL_HANDLE;
 
+    VkDevice LogicalDevice;
+    VkQueue GraphicsQueue;
+
     const std::vector<const char*> ValidationLayers = {
         "VK_LAYER_KHRONOS_validation"
     };
@@ -81,6 +88,7 @@ private:
         CreateInstance();
         SetupDebugMessenger();
         PickPhysicalDevice();
+        CreateLogicalDevice();
     }
 
     void MainLoop()
@@ -93,6 +101,7 @@ private:
 
     void CleanUp()
     {
+        vkDestroyDevice(LogicalDevice, nullptr);
         if (EnableValidationLayers)
         {
             DestroyDebugUtilsMessengerEXT(Instance, DebugMessenger, nullptr);
@@ -289,6 +298,10 @@ private:
         }
 
         Score += DeviceProperties.limits.maxImageDimension2D;
+        QueueFamilyIndices indices = FindQueueFamilies(Device);
+
+        Score *= static_cast<int>(indices.graphicsFamily.has_value());
+
         return Score;
     }
 
@@ -297,13 +310,56 @@ private:
         QueueFamilyIndices Indices;
 
         uint32_t QueueFamilyCount = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(PhysicalDevice, &QueueFamilyCount, nullptr);
+        vkGetPhysicalDeviceQueueFamilyProperties(Device, &QueueFamilyCount, nullptr);
 
         std::vector<VkQueueFamilyProperties> QueueFamilies(QueueFamilyCount);
-        vkGetPhysicalDeviceQueueFamilyProperties(PhysicalDevice, &QueueFamilyCount, QueueFamilies.data());
+        vkGetPhysicalDeviceQueueFamilyProperties(Device, &QueueFamilyCount, QueueFamilies.data());
 
+        int i = 0;
+        for (const auto& QueueFamily : QueueFamilies)
+        {
+            if (QueueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+            {
+                Indices.graphicsFamily = i;
+            }
 
+            if (Indices.isComplete())
+            {
+                break;
+            }
+            i++;
+        }
         return Indices;
+    }
+
+    void CreateLogicalDevice()
+    {
+        QueueFamilyIndices indices = FindQueueFamilies(PhysicalDevice);
+
+        VkDeviceQueueCreateInfo QueueCreateInfo{};
+        QueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        QueueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+        QueueCreateInfo.queueCount = 1;
+
+        float QueuePriority = 1.0f;
+        QueueCreateInfo.pQueuePriorities = &QueuePriority;
+
+        VkPhysicalDeviceFeatures DeviceFeatures{};
+
+        VkDeviceCreateInfo DeviceCreateInfo{};
+        DeviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        DeviceCreateInfo.pQueueCreateInfos = &QueueCreateInfo;
+        DeviceCreateInfo.queueCreateInfoCount = 1;
+        DeviceCreateInfo.pEnabledFeatures = &DeviceFeatures;
+
+        DeviceCreateInfo.enabledExtensionCount = 0;
+
+        if (vkCreateDevice(PhysicalDevice, &DeviceCreateInfo, nullptr, &LogicalDevice) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create the logical device!");
+        }
+
+        vkGetDeviceQueue(LogicalDevice, indices.graphicsFamily.value(), 0, &GraphicsQueue);
     }
 };
 
