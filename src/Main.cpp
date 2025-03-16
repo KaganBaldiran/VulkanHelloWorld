@@ -81,6 +81,7 @@ private:
 
     VkSwapchainKHR SwapChain;
     std::vector<VkImage> SwapChainImages;
+    std::vector<VkImageView> SwapChainImagesViews;
     VkSurfaceFormatKHR SurfaceFormat;
     VkPresentModeKHR PresentMode;
     VkExtent2D Extent;
@@ -112,6 +113,7 @@ private:
         PickPhysicalDevice();
         CreateLogicalDevice();
         CreateSwapChain();
+        CreateImageViews();
     }
 
     void MainLoop()
@@ -124,6 +126,11 @@ private:
 
     void CleanUp()
     {
+        for (auto ImageView : SwapChainImagesViews)
+        {
+            vkDestroyImageView(LogicalDevice, ImageView, nullptr);
+        }
+
         vkDestroySwapchainKHR(LogicalDevice, SwapChain, nullptr);
         vkDestroyDevice(LogicalDevice, nullptr);
         if (EnableValidationLayers)
@@ -579,6 +586,41 @@ private:
         this->SwapChainImages.resize(SwapChainImageCount);
         vkGetSwapchainImagesKHR(LogicalDevice, SwapChain, &SwapChainImageCount, SwapChainImages.data());
     }
+
+    void CreateImageViews()
+    {
+        SwapChainImagesViews.resize(SwapChainImages.size());
+        for (size_t i = 0; i < SwapChainImages.size(); i++)
+        {
+            VkImageViewCreateInfo ImageViewCreateInfo{};
+            ImageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            ImageViewCreateInfo.image = SwapChainImages[i];
+            ImageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            ImageViewCreateInfo.format = SurfaceFormat.format;
+
+            ImageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+            ImageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+            ImageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+            ImageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+            ImageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            ImageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+            ImageViewCreateInfo.subresourceRange.levelCount = 1;
+            ImageViewCreateInfo.subresourceRange.aspectMask = 0;
+            ImageViewCreateInfo.subresourceRange.layerCount = 1;
+
+            if (vkCreateImageView(LogicalDevice, &ImageViewCreateInfo, nullptr, &SwapChainImagesViews[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create an image view! id: [" + std::to_string(i) + "]");
+            }
+        }
+    }
+
+    void CreateGraphicsPipeline()
+    {
+
+    }
+
 };
 
 int main() {
