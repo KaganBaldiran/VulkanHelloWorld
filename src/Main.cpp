@@ -108,6 +108,8 @@ private:
     VkPipelineLayout PipelineLayout;
     VkPipeline GraphicsPipeline;
 
+    std::vector<VkFramebuffer> SwapChainFramebuffers;
+
     const std::vector<const char*> ValidationLayers = {
         "VK_LAYER_KHRONOS_validation"
     };
@@ -138,6 +140,7 @@ private:
         CreateImageViews();
         CreateRenderPass();
         CreateGraphicsPipeline();
+        CreateFramebuffers();
     }
 
     void MainLoop()
@@ -150,6 +153,11 @@ private:
 
     void CleanUp()
     {
+        for (auto Framebuffer : SwapChainFramebuffers)
+        {
+            vkDestroyFramebuffer(LogicalDevice, Framebuffer, nullptr);
+        }
+        vkDestroyPipeline(LogicalDevice, GraphicsPipeline, nullptr);
         vkDestroyPipelineLayout(LogicalDevice, PipelineLayout, nullptr);
         vkDestroyRenderPass(LogicalDevice, RenderPass, nullptr);
 
@@ -782,7 +790,7 @@ private:
 
         if (vkCreateGraphicsPipelines(LogicalDevice, VK_NULL_HANDLE, 1, &PipelineCreateInfo, nullptr, &GraphicsPipeline) != VK_SUCCESS)
         {
-            throw std::runtime_error("Error creating the grpahics pipeline!");
+            throw std::runtime_error("Error creating the graphics pipeline!");
         }
 
         vkDestroyShaderModule(LogicalDevice, VertexShaderModule, nullptr);
@@ -838,6 +846,30 @@ private:
         }
     }
 
+    void CreateFramebuffers() 
+    {
+        SwapChainFramebuffers.resize(SwapChainImagesViews.size());
+        for (size_t i = 0; i < SwapChainImagesViews.size(); i++)
+        {
+            VkImageView Attachments[] = {
+                SwapChainImagesViews[i]
+            };
+
+            VkFramebufferCreateInfo FramebufferCreateInfo{};
+            FramebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            FramebufferCreateInfo.renderPass = RenderPass;
+            FramebufferCreateInfo.attachmentCount = 1;
+            FramebufferCreateInfo.pAttachments = Attachments;
+            FramebufferCreateInfo.width = Extent.width;
+            FramebufferCreateInfo.height = Extent.height;
+            FramebufferCreateInfo.layers = 1;
+
+            if (vkCreateFramebuffer(LogicalDevice, &FramebufferCreateInfo, nullptr, &this->SwapChainFramebuffers[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("Failed to create a swap chain framebuffer!");
+            }
+        }
+    }
 };
 
 int main() {
