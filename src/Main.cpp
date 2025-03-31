@@ -161,6 +161,8 @@ private:
             DrawFrame();
             glfwPollEvents();
         }
+
+        vkDeviceWaitIdle(LogicalDevice);
     }
 
     void CleanUp()
@@ -851,12 +853,22 @@ private:
         Subpass.colorAttachmentCount = 1;
         Subpass.pColorAttachments = &ColorAttachmentRef;
 
+        VkSubpassDependency ExternalDependency{};
+        ExternalDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+        ExternalDependency.dstSubpass = 0;
+        ExternalDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        ExternalDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        ExternalDependency.srcAccessMask = 0;
+        ExternalDependency.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
         VkRenderPassCreateInfo RenderPassCreateInfo{};
         RenderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
         RenderPassCreateInfo.attachmentCount = 1;
         RenderPassCreateInfo.pAttachments = &ColorAttachment;
         RenderPassCreateInfo.subpassCount = 1;
         RenderPassCreateInfo.pSubpasses = &Subpass;
+        RenderPassCreateInfo.dependencyCount = 1;
+        RenderPassCreateInfo.pDependencies = &ExternalDependency;
 
         if (vkCreateRenderPass(LogicalDevice, &RenderPassCreateInfo, nullptr, &RenderPass) != VK_SUCCESS)
         {
@@ -1015,6 +1027,18 @@ private:
         {
             throw std::runtime_error("Failed to submit draw command buffer!");
         }
+
+        VkPresentInfoKHR PresentInfo{};
+        PresentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        PresentInfo.waitSemaphoreCount = 1;
+        PresentInfo.pWaitSemaphores = SignalSemaphores;
+
+        VkSwapchainKHR SwapChains[] = { SwapChain };
+        PresentInfo.swapchainCount = 1;
+        PresentInfo.pSwapchains = SwapChains;
+        PresentInfo.pImageIndices = &ImageIndex;
+        PresentInfo.pResults = nullptr;
+        vkQueuePresentKHR(PresentQueue, &PresentInfo);
     }
 };
 
