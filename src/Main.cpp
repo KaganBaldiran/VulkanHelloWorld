@@ -12,6 +12,9 @@
 #include <optional>
 #include <limits>
 #include <fstream>
+#include <array>
+
+#include <glm/glm.hpp>
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
@@ -72,6 +75,43 @@ struct SwapChainSupportDetails {
     VkSurfaceCapabilitiesKHR Capabilities;
     std::vector<VkSurfaceFormatKHR> Formats;
     std::vector<VkPresentModeKHR> PresentModes;
+};
+
+struct Vertex2D {
+    glm::vec2 Position;
+    glm::vec3 Color;
+
+    static VkVertexInputBindingDescription GetBindingDescription()
+    {
+        VkVertexInputBindingDescription BindingDescription;
+        BindingDescription.binding = 0;
+        BindingDescription.stride = sizeof(Vertex2D);
+        BindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+        return BindingDescription;
+    }
+
+    static std::array<VkVertexInputAttributeDescription, 2> GetAttributeDescriptions()
+    {
+        std::array<VkVertexInputAttributeDescription, 2> AttributeDescriptions{};
+        AttributeDescriptions[0].binding = 0;
+        AttributeDescriptions[0].location = 0;
+        AttributeDescriptions[0].format= VK_FORMAT_R32G32_SFLOAT;
+        AttributeDescriptions[0].offset = offsetof(Vertex2D,Position);
+
+        AttributeDescriptions[1].binding = 0;
+        AttributeDescriptions[1].location = 1;
+        AttributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        AttributeDescriptions[1].offset = offsetof(Vertex2D, Color);
+
+        return AttributeDescriptions;
+    }
+};
+
+const std::vector<Vertex2D> Vertices = {
+    {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+    {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+    {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
 };
 
 class HelloWorldTriangle
@@ -695,7 +735,7 @@ private:
         int Result = std::system(Command.c_str());
         if (Result != 0)
         {
-            //throw std::runtime_error("Failed to compile glsl into spir-v");
+            throw std::runtime_error("Failed to compile glsl into spir-v");
         }
     }
 
@@ -734,12 +774,15 @@ private:
         DynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(DynamicStates.size());
         DynamicStateCreateInfo.pDynamicStates = DynamicStates.data();
 
+        auto BindingDescription = Vertex2D::GetBindingDescription();
+        auto AttributeDescription = Vertex2D::GetAttributeDescriptions();
+
         VkPipelineVertexInputStateCreateInfo VertexInputCreateInputInfo{};
         VertexInputCreateInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        VertexInputCreateInputInfo.vertexBindingDescriptionCount = 0;
-        VertexInputCreateInputInfo.pVertexBindingDescriptions = nullptr;
-        VertexInputCreateInputInfo.vertexAttributeDescriptionCount = 0;
-        VertexInputCreateInputInfo.pVertexAttributeDescriptions = nullptr;
+        VertexInputCreateInputInfo.vertexBindingDescriptionCount = 1;
+        VertexInputCreateInputInfo.pVertexBindingDescriptions = &BindingDescription;
+        VertexInputCreateInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(AttributeDescription.size());
+        VertexInputCreateInputInfo.pVertexAttributeDescriptions = AttributeDescription.data();
 
         VkPipelineInputAssemblyStateCreateInfo InputAssemblyCreateInfo{};
         InputAssemblyCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
