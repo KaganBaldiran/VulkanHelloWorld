@@ -109,10 +109,16 @@ struct Vertex2D {
 };
 
 const std::vector<Vertex2D> Vertices = {
-    {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-    {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-    {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+    {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+    {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+    {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
 };
+
+const std::vector<uint16_t> indices = {
+    0, 1, 2, 2, 3, 0
+};
+
 
 class HelloWorldTriangle
 {
@@ -159,6 +165,12 @@ private:
     std::vector<VkSemaphore> RenderFinishedSemophores;
     std::vector<VkFence> InFlightFences;
 
+    VkBuffer VertexBuffer;
+    VkDeviceMemory VertexBufferMemory;
+
+    VkBuffer IndexBuffer;
+    VkDeviceMemory IndexBufferMemory;
+
     bool FrameBufferResized = false;
     uint32_t CurrentFrame = 0;
 
@@ -204,6 +216,8 @@ private:
         CreateFramebuffers();
         CreateCommandPool();
         CreateCommandBuffer();
+        CreateVertexBuffer();
+        CreateIndexBuffer();
         CreateSyncObjects();
     }
 
@@ -221,6 +235,12 @@ private:
     void CleanUp()
     {
         CleanupSwapChain();
+
+        vkDestroyBuffer(LogicalDevice, IndexBuffer, nullptr);
+        vkFreeMemory(LogicalDevice, IndexBufferMemory, nullptr);
+
+        vkDestroyBuffer(LogicalDevice, VertexBuffer, nullptr);
+        vkFreeMemory(LogicalDevice, VertexBufferMemory, nullptr);
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
         {
@@ -1032,6 +1052,11 @@ private:
 
         vkCmdBindPipeline(CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, GraphicsPipeline);
 
+        VkBuffer VertexBuffers[] = { VertexBuffer };
+        VkDeviceSize Offsets[] = { 0 };
+        vkCmdBindVertexBuffers(CommandBuffer, 0, 1, VertexBuffers, Offsets);
+        vkCmdBindIndexBuffer(CommandBuffer, IndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+
         VkViewport Viewport{};
         Viewport.x = 0.0f;
         Viewport.y = 0.0f;
@@ -1045,7 +1070,7 @@ private:
         Scissor.offset = { 0,0 };
         Scissor.extent = Extent;
         vkCmdSetScissor(CommandBuffer, 0, 1, &Scissor);
-        vkCmdDraw(CommandBuffer, 3, 1, 0, 0);
+        vkCmdDrawIndexed(CommandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0,0);
         vkCmdEndRenderPass(CommandBuffer);
         if (vkEndCommandBuffer(CommandBuffer) != VK_SUCCESS)
         {
@@ -1175,6 +1200,125 @@ private:
         CreateSwapChain();
         CreateImageViews();
         CreateFramebuffers();
+    }
+
+    void CreateVertexBuffer()
+    {
+        VkDeviceSize BufferSize = sizeof(Vertices[0]) * Vertices.size();
+
+        VkBuffer StagingBuffer;
+        VkDeviceMemory StagingBufferMemory;
+        CreateBuffer(BufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, StagingBuffer, StagingBufferMemory);
+
+        void* Data;
+        vkMapMemory(LogicalDevice, StagingBufferMemory, 0, BufferSize, 0, &Data);
+        memcpy(Data, Vertices.data(), (size_t)BufferSize);
+        vkUnmapMemory(LogicalDevice, StagingBufferMemory);
+
+        CreateBuffer(BufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VertexBuffer, VertexBufferMemory);
+        CopyBuffer(StagingBuffer, VertexBuffer, BufferSize);
+
+        vkDestroyBuffer(LogicalDevice, StagingBuffer, nullptr);
+        vkFreeMemory(LogicalDevice, StagingBufferMemory, nullptr);
+    }
+
+    void CreateIndexBuffer()
+    {
+        VkDeviceSize BufferSize = sizeof(indices[0]) * indices.size();
+
+        VkBuffer StagingBuffer;
+        VkDeviceMemory StagingBufferMemory;
+        CreateBuffer(BufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, StagingBuffer, StagingBufferMemory);
+
+        void* Data;
+        vkMapMemory(LogicalDevice, StagingBufferMemory, 0, BufferSize, 0, &Data);
+        memcpy(Data, indices.data(), (size_t)BufferSize);
+        vkUnmapMemory(LogicalDevice, StagingBufferMemory);
+
+        CreateBuffer(BufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, IndexBuffer, IndexBufferMemory);
+        CopyBuffer(StagingBuffer, IndexBuffer, BufferSize);
+
+        vkDestroyBuffer(LogicalDevice, StagingBuffer, nullptr);
+        vkFreeMemory(LogicalDevice, StagingBufferMemory, nullptr);
+    }
+
+    void CopyBuffer(VkBuffer SourceBuffer, VkBuffer DestinationBuffer, VkDeviceSize Size)
+    {
+        VkCommandBufferAllocateInfo AllocateInfo{};
+        AllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        AllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        AllocateInfo.commandPool = CommandPool;
+        AllocateInfo.commandBufferCount = 1;
+
+        VkCommandBuffer CommandBuffer;
+        vkAllocateCommandBuffers(LogicalDevice, &AllocateInfo, &CommandBuffer);
+
+        VkCommandBufferBeginInfo BeginInfo{};
+        BeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        BeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        vkBeginCommandBuffer(CommandBuffer, &BeginInfo);
+
+        VkBufferCopy CopyRegion{};
+        CopyRegion.srcOffset = 0;
+        CopyRegion.dstOffset = 0;
+        CopyRegion.size = Size;
+        vkCmdCopyBuffer(CommandBuffer, SourceBuffer, DestinationBuffer, 1, &CopyRegion);
+
+        vkEndCommandBuffer(CommandBuffer);
+
+        VkSubmitInfo SubmitInfo{};
+        SubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        SubmitInfo.commandBufferCount = 1;
+        SubmitInfo.pCommandBuffers = &CommandBuffer;
+
+        vkQueueSubmit(GraphicsQueue, 1, &SubmitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(GraphicsQueue);
+
+        vkFreeCommandBuffers(LogicalDevice, CommandPool, 1, &CommandBuffer);
+    }
+
+    uint32_t FindMemoryType(uint32_t TypeFilter, VkMemoryPropertyFlags Properties)
+    {
+        VkPhysicalDeviceMemoryProperties MemoryProperties;
+        vkGetPhysicalDeviceMemoryProperties(PhysicalDevice, &MemoryProperties);
+
+        for (size_t i = 0; i < MemoryProperties.memoryTypeCount; i++)
+        {
+            if (TypeFilter & (1 << i) && (MemoryProperties.memoryTypes[i].propertyFlags & Properties) == Properties)
+            {
+                return i;
+            }
+        }
+    }
+
+    void CreateBuffer(VkDeviceSize Size, VkBufferUsageFlags Usage, VkMemoryPropertyFlags Properties, VkBuffer& Buffer, VkDeviceMemory& DeviceMemory)
+    {
+        VkBufferCreateInfo BufferCreateInfo{};
+        BufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        BufferCreateInfo.size = Size;
+        BufferCreateInfo.usage = Usage;
+        BufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vkCreateBuffer(LogicalDevice, &BufferCreateInfo, nullptr, &Buffer) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to create vertex buffer!");
+        }
+
+        VkMemoryRequirements MemoryRequirements{};
+        vkGetBufferMemoryRequirements(LogicalDevice, Buffer, &MemoryRequirements);
+
+        VkMemoryAllocateInfo AllocationInfo{};
+        AllocationInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        AllocationInfo.allocationSize = MemoryRequirements.size;
+        AllocationInfo.memoryTypeIndex = FindMemoryType(MemoryRequirements.memoryTypeBits, Properties);
+
+        if (vkAllocateMemory(LogicalDevice, &AllocationInfo, nullptr, &DeviceMemory) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to allocate memory!");
+        }
+
+        vkBindBufferMemory(LogicalDevice, Buffer, DeviceMemory, 0);
     }
 };
 
