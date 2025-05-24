@@ -49,10 +49,12 @@ if(WIN32)
         endif()
     endforeach()
 
-    include_directories(external/freeimage/include/Source external/glfw-3.3.7.bin.WIN64/glfw-3.3.7.bin.WIN64/include/GLFW ${VULKAN_SDK}/Include)
+  include_directories(external/freeimage/include/Source external/VulkanMemoryAllocator/include external/assimp/include external/glfw-3.3.7.bin.WIN64/glfw-3.3.7.bin.WIN64/include/GLFW ${VULKAN_SDK}/Include)
     target_link_libraries(${PROJECT_NAME} 
                                     ${CMAKE_SOURCE_DIR}/external/glfw-3.3.7.bin.WIN64/glfw-3.3.7.bin.WIN64/lib-vc2022/glfw3.lib 
                                     ${CMAKE_SOURCE_DIR}/external/freeimage/lib/release/FreeImage.lib
+                                    ${CMAKE_SOURCE_DIR}/external/assimp/lib/assimp-vc143-mt.lib
+                                    ${CMAKE_SOURCE_DIR}/external/VulkanMemoryAllocator/lib/VmaSample.lib
                                     ${VULKAN_SDK}/Lib/vulkan-1.lib
                                     )
 
